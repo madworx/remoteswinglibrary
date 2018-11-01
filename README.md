@@ -1,6 +1,8 @@
 RemoteSwingLibrary
 ==================
 
+[![Build Status](https://travis-ci.org/madworx/remoteswinglibrary.svg?branch=master)](https://travis-ci.org/madworx/remoteswinglibrary)
+
 [Robot Framework](http://robotframework.org) library for testing and connecting to a java process and using [SwingLibrary](https://github.com/robotframework/SwingLibrary).
 
 This library allows you to use pybot (Python version of Robot Framework) to run test cases although it also works if you are running with jybot (Jython version of Robot Framework). This means that you can use your other pure Python libraries in your test cases that will not work when runnin with Jython.

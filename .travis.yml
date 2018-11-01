@@ -22,13 +22,12 @@ script:
 deploy:
   provider: releases
   api_key:
-    secure: W/L4qmFwnwm2pxW872k9B528jKtfJ/OrnRBGMeeyBvN4fIFoqeBJ+xVrxnSuPl/H5WrM/VOx4UemdQrCzhjgYkWCBBOjy8CkFI0n8ubLkVSV6xA+BGNX5IlfbZ24AhtUa9QtWWouQpRzDP0HdK9sCLHiAWqVvtVdi5x8irNoOaExOOHIbwbMRkEV/XznSfcPxY2VTDI74nwF27ufxhHBZoIIPR+otpW5tMsdQKVoLGwB7UehXRWu8Nk8bY7nzgV9xAE/ph0bAa+XLzi4YB3iDxmiRLbNkFuFVfd58oWdNfAU8a2yr/nuYVOcMb3zEMPMS9D0d2D9MlD8dBGuw/0q7fftUyQeER6dI42T1cSVtniQ/BTcVO2TL080HWdjbBloZBcFhoQ7NBDsdzRcyYlKVMh8EkC1ynldh7Vx9cByg+qrgbKE941++2OgTL+0DcAu6/8+7Q2RZXuBbZuwwOGgNbylO5MsVQdsQZTXJ5aDDfwavaheNgaKVq5dH4vUdKfFpaAr9955JFjgRS4G6Cynt8z08XzxmQ6lbGOGBG2g+QQPeE52i3nRclc8JS4IdaO0zzBJU55DxJ4CXd2EmuHhUY6P7cM/XHpjK5XnFyfTgLaHc/hn5QMi5bDX0hySKUxD4rB1+fr0qeUU5I4i0p7yNeZDJTI+4UOboVJe+0O0J60=
+    secure: xYu1oy9u9+GhEIot3D0bRGZh2s2v8neuk3YWRrh/ZuV4IOiuOGWV3CFr4ujIeNV/DBHSIwnEfPM+8NOGCOYE0uEK0kJomNeUQMrQW6+hEzacIwVjQ7AwYM1YwsR/J8dBIJj+BU3jBOthQESX9CTfU6aqA988AugRlaMPApjk2GxE1XwODW6HWRarLiD+u2ucBcSUjN5L3chJooVxO2gmA5f39XPilTiKSjgNattsUzPWu2ar4ZyB4PBJRdkG7ZqEEPP0YCTn/om6+rsOuf/H3P5UEpkHcEWSsxRs97SvVDOp4Cb1UOP8NbTr+Erx9WFF4VnIY1Hl05N4+fVdO+DppQ39oGpjNWvAB8F2M4oXh73dPdOKvjk56U1T4N533LmhAiOd1AsOkT80t43miRTR/YS8LrHoo39j2Iji7w8Ppr8tEeMFZmLYp6QTjEMPmn5n+CrJzn7swGUIjVJSOWKSCZlNcrsVyr/v1Lyu+qSz2NFRDky0DzUJsPDsyPj7S4ggKjcVPDavq3xT38zdd8VgbSgrjLizaW1MFJK1AyW/6GIbBy04YD8RT4tYwbdFR58qdRnvzAdRnn4i9XaW/SFdOwL0qnFID62T53XumJcBrWqSZzASBupiPPLMqy/cTP95FygZ1w9veenb0N3HYmMZ+EhNkQ7ZFq9HdPj2sidI5VM=
   file_glob: true
   file:
     - $HOME/.m2/repository/org/robotframework/remoteswinglibrary/*/remoteswinglibrary-*.*.sha1
     - $HOME/.m2/repository/org/robotframework/remoteswinglibrary/*/remoteswinglibrary-*.pom
     - $HOME/.m2/repository/org/robotframework/remoteswinglibrary/*/remoteswinglibrary-*.jar
-
   skip_cleanup: true
   overwrite: true
   on:
