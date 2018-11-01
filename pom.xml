@@ -8,7 +8,7 @@
   </parent>
   <groupId>org.robotframework</groupId>
   <artifactId>remoteswinglibrary</artifactId>
-  <version>2.2.2</version>
+  <version>2.2.2mwx0</version>
   <packaging>jar</packaging>
 
   <name>robotframework-remoteswinglibrary</name>
@@ -29,6 +29,13 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>madworx</id>
+      <url>https://maven.madworx.se</url>
+    </repository>
+  </repositories>
+
   <developers>
     <developer>
       <name>Robot Framework developers</name>
@@ -43,9 +50,9 @@
     <version>3.0</version>
     </dependency>
     <dependency>
-    <groupId>org.robotframework</groupId>
-    <artifactId>swinglibrary</artifactId>
-    <version>1.9.8</version>
+    <groupId>com.github.madworx</groupId>
+    <artifactId>SwingLibrary</artifactId>
+    <version>1.9.8mwx14</version>
     </dependency>
   </dependencies>
 
