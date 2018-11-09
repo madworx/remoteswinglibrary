@@ -198,31 +198,46 @@ class RemoteSwingLibrary(object):
     PORT = None
     DEBUG = None
     AGENT_PATH = os.path.abspath(os.path.dirname(__file__))
+    POLICY_FILE = None
     _output_dir = ''
     JAVA9_OR_NEWER = None
 
-    @staticmethod
-    def _get_sys_path(path_type):
-        if path_type in os.environ:
-            classpath = os.environ[path_type].split(os.pathsep)
-            for path in classpath:
-                if 'remoteswinglibrary' in path:
-                    return path
-        return None
+    def _remove_policy_file(self):
+        if self.POLICY_FILE and os.path.isfile(self.POLICY_FILE):
+            os.remove(self.POLICY_FILE)
+            self.POLICY_FILE = None
 
     def _java9_or_newer(self):
         version = self._read_java_version()
         return float(version) >= 1.9
 
     def _read_java_version(self):
-        pythonpath_value = self._get_sys_path('PYTHONPATH')
-        if pythonpath_value:
-            old_classpath = os.environ['CLASSPATH'] if 'CLASSPATH' in os.environ else None
-            os.environ['CLASSPATH'] = pythonpath_value
-            if old_classpath:
-                os.environ['CLASSPATH'] += os.pathsep + old_classpath
+        def read_python_path_env():
+            if 'PYTHONPATH' in os.environ:
+                classpath = os.environ['PYTHONPATH'].split(os.pathsep)
+                for path in classpath:
+                    if 'remoteswinglibrary' in path:
+                        return path
+            return None
+
+        def read_sys_path():
+            for item in sys.path:
+                if 'remoteswinglibrary' in item and '.jar' in item:
+                    return item
+            return None
+
+        def construct_classpath(location):
+            classpath = location
+            if 'CLASSPATH' in os.environ:
+                classpath += os.pathsep + os.environ['CLASSPATH']
+            return classpath
+
+        location = read_python_path_env() or read_sys_path()
+        os.environ['CLASSPATH'] = construct_classpath(location)
+
         p = subprocess.Popen(['java', 'org.robotframework.remoteswinglibrary.ReadJavaVersion'],
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, env=os.environ)
         version, err = p.communicate()
         return version
 
@@ -270,6 +285,7 @@ class RemoteSwingLibrary(object):
         RemoteSwingLibrary.PORT = None
         RemoteSwingLibrary.DEBUG = None
         RemoteSwingLibrary.TIMEOUT = 60
+        self._remove_policy_file()
 
         self._initiate(port, debug)
 
@@ -343,7 +359,8 @@ class RemoteSwingLibrary(object):
             self._agent_command += ' --add-exports=java.desktop/sun.awt=ALL-UNNAMED'
         os.environ['JAVA_TOOL_OPTIONS'] = en_us_locale + self._agent_command
         logger.debug("Set JAVA_TOOL_OPTIONS='%s%s'" % (en_us_locale, self._agent_command))
-        with tempfile.NamedTemporaryFile(prefix='grant_all_', suffix='.policy', delete=True) as t:
+        with tempfile.NamedTemporaryFile(prefix='grant_all_', suffix='.policy', delete=False) as t:
+            self.POLICY_FILE = t.name
             text = b"""
                 grant {
                     permission java.security.AllPermission;
@@ -403,6 +420,8 @@ class RemoteSwingLibrary(object):
             else:
                 logger.info("Process is running, but application startup failed")
             raise
+        finally:
+            self._remove_policy_file()
 
     def _output(self, filename):
         return os.path.join(self._output_dir, filename)
@@ -442,6 +461,7 @@ class RemoteSwingLibrary(object):
         RemoteSwingLibrary.CURRENT = alias
         self._wait_for_api(url)
         logger.info('connected to started application at %s' % url)
+        self._remove_policy_file()
 
     def _initialize_remote_libraries(self, alias, url):
         swinglibrary = Remote(url)
@@ -539,7 +559,7 @@ class RemoteSwingLibrary(object):
         """
         with self._run_and_ignore_connection_lost():
             self._run_from_services('systemExit', exit_code)
-		# try closing the attached process (if started with start_application) to close any open file handles
+            # try closing the attached process (if started with start_application) to close any open file handles
         try:
             self.PROCESS.wait_for_process(handle=RemoteSwingLibrary.CURRENT, timeout=0.01)
         except:
@@ -556,7 +576,10 @@ class RemoteSwingLibrary(object):
         """
         env = self._run_from_services('getEnvironment')
         logger.info(env)
-        return env
+        if IS_PYTHON3:
+            return env.decode("utf_8")
+        else:
+            return env
 
     def get_keyword_names(self):
         overrided_keywords = ['startApplication',
