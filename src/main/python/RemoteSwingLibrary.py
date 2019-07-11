@@ -38,7 +38,7 @@ from robot.errors import HandlerExecutionFailed, TimeoutError
 from robot.libraries.Process import Process
 from robot.libraries.Remote import Remote
 from robot.libraries.BuiltIn import BuiltIn, run_keyword_variant
-from robot.utils import timestr_to_secs, get_link_path
+from robot.utils import timestr_to_secs, get_link_path, is_string
 from robotbackgroundlogger import BackgroundLogger
 
 logger = BackgroundLogger()
@@ -115,7 +115,7 @@ def _tobool(value):
     return str(value).lower() in ("true", "1", "yes")
 
 
-__version__ = '2.2.2'
+__version__ = '2.2.4'
 
 
 class RemoteSwingLibrary(object):
@@ -200,7 +200,7 @@ class RemoteSwingLibrary(object):
     AGENT_PATH = os.path.abspath(os.path.dirname(__file__))
     POLICY_FILE = None
     _output_dir = ''
-    JAVA9_OR_NEWER = None
+    JAVA9_OR_NEWER = False
 
     def _remove_policy_file(self):
         if self.POLICY_FILE and os.path.isfile(self.POLICY_FILE):
@@ -208,22 +208,30 @@ class RemoteSwingLibrary(object):
             self.POLICY_FILE = None
 
     def _java9_or_newer(self):
-        version = self._read_java_version()
-        return float(version) >= 1.9
+        try:
+            version = float(self._read_java_version())
+        except:
+            logger.warn('Failed to auto-detect Java version. Assuming Java is older than 9. To run in newer Java'
+                        'compatibility mode set java9_or_newer=True when importing the library.')
+            return False
+        return version >= 1.9
 
-    def _read_java_version(self):
-        def read_python_path_env():
-            if 'PYTHONPATH' in os.environ:
-                classpath = os.environ['PYTHONPATH'].split(os.pathsep)
-                for path in classpath:
-                    if 'remoteswinglibrary' in path:
-                        return path
-            return None
+    @staticmethod
+    def read_python_path_env():
+        if 'PYTHONPATH' in os.environ:
+            classpath = os.environ['PYTHONPATH'].split(os.pathsep)
+            for path in classpath:
+                if 'remoteswinglibrary' in path.lower():
+                    return str(path)
+        return None
+
+    @staticmethod
+    def _read_java_version():
 
         def read_sys_path():
             for item in sys.path:
-                if 'remoteswinglibrary' in item and '.jar' in item:
-                    return item
+                if 'remoteswinglibrary' in item.lower() and '.jar' in item.lower():
+                    return str(item)
             return None
 
         def construct_classpath(location):
@@ -232,8 +240,9 @@ class RemoteSwingLibrary(object):
                 classpath += os.pathsep + os.environ['CLASSPATH']
             return classpath
 
-        location = read_python_path_env() or read_sys_path()
-        os.environ['CLASSPATH'] = construct_classpath(location)
+        location = RemoteSwingLibrary.read_python_path_env() or read_sys_path()
+        if location:
+            os.environ['CLASSPATH'] = construct_classpath(location)
 
         p = subprocess.Popen(['java', 'org.robotframework.remoteswinglibrary.ReadJavaVersion'],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -241,11 +250,16 @@ class RemoteSwingLibrary(object):
         version, err = p.communicate()
         return version
 
-    def __init__(self, port=0, debug=False):
+    def __init__(self, port=0, debug=False, java9_or_newer='auto-detect'):
         """
-        *port*: optional port for the server receiving connections from remote agents
+        ``port``: optional port for the server receiving connections from remote agents
 
-        *debug*: optional flag that will start agent in mode with more logging for troubleshooting (set to TRUE to enable)
+        ``debug``: optional flag that will start agent in mode with more logging for troubleshooting
+        (set to ``True`` to enable)
+
+        ``java9_or_newer``: optional flag that by default will try to automatically detect if Java version is greater
+        than 8. If it fails to detect, manually set it to ``True`` or ``False`` accordingly. If the value is different
+        from ``true``, ``1`` or ``yes`` (case insensitive) it will default to ``False``.
 
         *Note:* RemoteSwingLibrary is a so called Global Scope library. This means when it is imported once it will be
         available until end of robot run. Parameters used in imports from others suites will be ignored.
@@ -253,21 +267,25 @@ class RemoteSwingLibrary(object):
 
         """
 
-        self._initiate(port, debug)
+        self._initiate(port, debug, java9_or_newer)
 
         if os.path.exists(self._output("remote-stderr")):
             shutil.rmtree(self._output("remote-stderr"))
         if os.path.exists(self._output("remote-stdout")):
             shutil.rmtree(self._output("remote-stdout"))
 
-    def _initiate(self, port=0, debug=False):
+    def _initiate(self, port=0, debug=False, java9_or_newer='auto-detect'):
         if RemoteSwingLibrary.DEBUG is None:
             RemoteSwingLibrary.DEBUG = _tobool(debug)
         if RemoteSwingLibrary.PORT is None:
             RemoteSwingLibrary.PORT = self._start_port_server(int(port))
-        if RemoteSwingLibrary.JAVA9_OR_NEWER is None:
+        if java9_or_newer == 'auto-detect':
             RemoteSwingLibrary.JAVA9_OR_NEWER = _tobool(self._java9_or_newer())
+        elif _tobool(java9_or_newer):
+            RemoteSwingLibrary.JAVA9_OR_NEWER = True
         try:
+            if '__pyclasspath__' in RemoteSwingLibrary.AGENT_PATH:
+                RemoteSwingLibrary.AGENT_PATH = RemoteSwingLibrary.read_python_path_env()
             BuiltIn().set_global_variable('\${REMOTESWINGLIBRARYPATH}',
                                           self._escape_path(RemoteSwingLibrary.AGENT_PATH))
             BuiltIn().set_global_variable('\${REMOTESWINGLIBRARYPORT}', RemoteSwingLibrary.PORT)
@@ -275,7 +293,7 @@ class RemoteSwingLibrary(object):
         except RobotNotRunningError:
             pass
 
-    def reinitiate(self, port=0, debug=False):
+    def reinitiate(self, port=0, debug=False, java9_or_newer='auto-detect'):
         """
         Restarts RemoteSwingLibrary with new import parameters.
         """
@@ -287,7 +305,7 @@ class RemoteSwingLibrary(object):
         RemoteSwingLibrary.TIMEOUT = 60
         self._remove_policy_file()
 
-        self._initiate(port, debug)
+        self._initiate(port, debug, java9_or_newer)
 
     @property
     def current(self):
@@ -307,7 +325,7 @@ class RemoteSwingLibrary(object):
         t.start()
         return server.server_address[1]
 
-    def _create_env(self, close_security_dialogs=False, remote_port=0):
+    def _create_env(self, close_security_dialogs=False, remote_port=0, dir_path=None):
         agent_command = '-javaagent:"%s"=127.0.0.1:%s' % (RemoteSwingLibrary.AGENT_PATH, RemoteSwingLibrary.PORT)
         if int(remote_port):
             agent_command += ':APPORT=%s' % remote_port
@@ -315,6 +333,9 @@ class RemoteSwingLibrary(object):
             agent_command += ':DEBUG'
         if _tobool(close_security_dialogs):
             agent_command += ':CLOSE_SECURITY_DIALOGS'
+        if dir_path:
+            dir_path = os.path.abspath(dir_path)
+            agent_command += ':DIR_PATH:%s' % dir_path
         self._agent_command = agent_command
         logger.info(agent_command)
 
@@ -322,12 +343,12 @@ class RemoteSwingLibrary(object):
         return text.replace("\\", "\\\\")
 
     @contextmanager
-    def _agent_java_tool_options(self, close_security_dialogs, remote_port):
+    def _agent_java_tool_options(self, close_security_dialogs, remote_port, dir_path):
         old_tool_options = os.environ.get('JAVA_TOOL_OPTIONS', '')
         old_options = os.environ.get('_JAVA_OPTIONS', '')
         logger.debug("Picked old JAVA_TOOL_OPTIONS='%s'" % old_tool_options)
         logger.debug("Picked old _JAVA_OPTIONS='%s'" % old_options)
-        self.set_java_tool_options(close_security_dialogs, remote_port)
+        self.set_java_tool_options(close_security_dialogs, remote_port, dir_path)
         try:
             yield
         finally:
@@ -336,7 +357,7 @@ class RemoteSwingLibrary(object):
             logger.debug("Returned old JAVA_TOOL_OPTIONS='%s'" % old_tool_options)
             logger.debug("Returned old _JAVA_OPTIONS='%s'" % old_options)
 
-    def set_java_tool_options(self, close_security_dialogs=True, remote_port=0):
+    def set_java_tool_options(self, close_security_dialogs=True, remote_port=0, dir_path=None):
         """Sets the ``JAVA_TOOL_OPTIONS`` to include RemoteSwingLibrary Agent and
         the ``_JAVA_OPTIONS`` to set a temporary policy granting all permissions.
 
@@ -353,9 +374,9 @@ class RemoteSwingLibrary(object):
         """
         close_security_dialogs = _tobool(close_security_dialogs)
         en_us_locale = "-Duser.language=en -Duser.country=US "
-        self._create_env(close_security_dialogs, remote_port)
+        self._create_env(close_security_dialogs, remote_port, dir_path)
         logger.info("Java version > 9: " + str(RemoteSwingLibrary.JAVA9_OR_NEWER))
-        if RemoteSwingLibrary.JAVA9_OR_NEWER:
+        if RemoteSwingLibrary.JAVA9_OR_NEWER is True:
             self._agent_command += ' --add-exports=java.desktop/sun.awt=ALL-UNNAMED'
         os.environ['JAVA_TOOL_OPTIONS'] = en_us_locale + self._agent_command
         logger.debug("Set JAVA_TOOL_OPTIONS='%s%s'" % (en_us_locale, self._agent_command))
@@ -372,7 +393,7 @@ class RemoteSwingLibrary(object):
         logger.debug("Set _JAVA_OPTIONS='%s'" % java_policy)
 
     def start_application(self, alias, command, timeout=60, name_contains="", close_security_dialogs=False,
-                          remote_port=0):
+                          remote_port=0, dir_path=None):
         """Starts the process in the ``command`` parameter  on the host operating system.
         The given ``alias`` is stored to identify the started application in RemoteSwingLibrary.
 
@@ -386,6 +407,8 @@ class RemoteSwingLibrary(object):
         ``remote_port`` forces RSL agent to run on specific port, this is useful if you want to
         connect to this application later from another robot run.
 
+        ``dir_path`` is the path where security dialogs screenshots are saved. It is working both with relative
+        and absolute path. If ``dir_path`` is not specified the screenshots will not be taken.
         """
         close_security_dialogs = _tobool(close_security_dialogs)
         stdout = "remote-stdout" + "/" + "remote-stdout-" + re.sub('[:. ]', '-', str(datetime.datetime.now())) + '.txt'
@@ -402,7 +425,7 @@ class RemoteSwingLibrary(object):
         logger.info('<a href="%s">Link to stdout</a>' % stdout, html=True)
         logger.info('<a href="%s">Link to stderr</a>' % stderr, html=True)
         REMOTE_AGENTS_LIST.set_received_to_old()
-        with self._agent_java_tool_options(close_security_dialogs, remote_port):
+        with self._agent_java_tool_options(close_security_dialogs, remote_port, dir_path):
             self.PROCESS.start_process(command, alias=alias, shell=True,
                                        stdout=self._output(stdout),
                                        stderr=self._output(stderr))
@@ -485,7 +508,7 @@ class RemoteSwingLibrary(object):
 
     def _ping_until_timeout(self, timeout):
         timeout = float(timeout)
-        delta = min(0.1, timeout)
+        delta = min(0.5, timeout)
         endtime = timeout + time.time()
         while endtime > time.time():
             self._run_from_services('ping')
@@ -576,10 +599,9 @@ class RemoteSwingLibrary(object):
         """
         env = self._run_from_services('getEnvironment')
         logger.info(env)
-        if IS_PYTHON3:
-            return env.decode("utf_8")
-        else:
-            return env
+        if IS_PYTHON3 and not is_string(env):
+            return env.decode('utf-8')
+        return env
 
     def get_keyword_names(self):
         overrided_keywords = ['startApplication',
@@ -612,10 +634,10 @@ class RemoteSwingLibrary(object):
             return getattr(self, name).__doc__
         return swinglibrary.keyword_documentation[name]
 
-    def run_keyword(self, name, arguments, kwargs):
+    def run_keyword(self, name, args, kwargs=None):
         if name in RemoteSwingLibrary.KEYWORDS:
-            return getattr(self, name)(*arguments, **kwargs)
+            return getattr(self, name)(*args, **(kwargs or {}))
         if self.current:
-            return self.current.run_keyword(name, arguments, kwargs)
+            return self.current.run_keyword(name, args, kwargs)
         if name in swinglibrary.keywords:
             raise Exception("To use this keyword you need to connect to application first.")
